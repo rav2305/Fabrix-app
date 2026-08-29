@@ -1083,6 +1083,156 @@ def reports():
         dealer_total_paid=dealer_total_paid
     )
 
+@app.route('/reports/export-sales-profit')
+@login_required
+def export_sales_profit_excel():
+    from openpyxl import Workbook
+    from flask import send_file
+    
+    invoices = Invoice.query.order_by(Invoice.date_created.desc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sales & Profit Report"
+    
+    headers = [
+        "Invoice No", "Date & Time", "Customer Name", "Customer Phone", 
+        "Subtotal (₹)", "Discount (₹)", "Final Amount (₹)", 
+        "Estimated Cost (₹)", "Net Profit (₹)", "Profit Margin (%)", 
+        "Payment Method", "Payment Status"
+    ]
+    ws.append(headers)
+    
+    total_rev = 0.0
+    total_cost = 0.0
+    total_prof = 0.0
+    
+    for inv in invoices:
+        inv_cost = sum(item.cost_price * item.quantity for item in inv.items)
+        net_profit = inv.final_amount - inv_cost
+        margin_pct = (net_profit / inv.final_amount * 100) if inv.final_amount > 0 else 0.0
+        
+        total_rev += inv.final_amount
+        total_cost += inv_cost
+        total_prof += net_profit
+        
+        ws.append([
+            inv.invoice_number,
+            inv.date_created.strftime('%Y-%m-%d %H:%M'),
+            inv.customer_name or 'Walk-in Customer',
+            inv.customer_phone or '',
+            inv.final_amount + inv.discount,
+            inv.discount,
+            inv.final_amount,
+            inv_cost,
+            net_profit,
+            f"{margin_pct:.1f}%",
+            inv.payment_method,
+            inv.payment_status
+        ])
+        
+    ws.append([])
+    ws.append([
+        "TOTALS", "", "", "", 
+        "", "", total_rev, 
+        total_cost, total_prof, 
+        f"{((total_prof/total_rev*100) if total_rev > 0 else 0):.1f}%", "", ""
+    ])
+    
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    return send_file(
+        file_stream,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"fabrix_sales_profit_report_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    )
+
+@app.route('/stock/export-excel')
+@login_required
+def export_stock_excel():
+    from openpyxl import Workbook
+    from flask import send_file
+    
+    products = Product.query.order_by(Product.name.asc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Current Stock Inventory"
+    
+    headers = [
+        "Product ID", "Product Name", "In Stock Qty", 
+        "Cost Price (Price for us) ₹", "Selling Price ₹", 
+        "Total Cost Value ₹", "Total Selling Value ₹", 
+        "Profit Margin Per Unit ₹", "Total Potential Profit ₹", "Stock Status"
+    ]
+    ws.append(headers)
+    
+    tot_qty = 0
+    tot_cost_val = 0.0
+    tot_sell_val = 0.0
+    tot_potential_prof = 0.0
+    
+    for prod in products:
+        cost_val = prod.quantity * prod.cost_price
+        sell_val = prod.quantity * prod.selling_price
+        unit_prof = prod.selling_price - prod.cost_price
+        total_prof = prod.quantity * unit_prof
+        
+        tot_qty += prod.quantity
+        tot_cost_val += cost_val
+        tot_sell_val += sell_val
+        tot_potential_prof += total_prof
+        
+        status = "IN STOCK"
+        if prod.quantity == 0:
+            status = "OUT OF STOCK"
+        elif prod.quantity <= 10:
+            status = "LOW STOCK"
+            
+        ws.append([
+            prod.id,
+            prod.name,
+            prod.quantity,
+            prod.cost_price,
+            prod.selling_price,
+            cost_val,
+            sell_val,
+            unit_prof,
+            total_prof,
+            status
+        ])
+        
+    ws.append([])
+    ws.append([
+        "TOTALS", f"{len(products)} Unique Items", tot_qty,
+        "", "", tot_cost_val, tot_sell_val,
+        "", tot_potential_prof, ""
+    ])
+    
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
+        
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    return send_file(
+        file_stream,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"fabrix_current_stock_inventory_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    )
+
 # ----------------- USER ACCESS MANAGEMENT ROUTES -----------------
 
 @app.route('/users')

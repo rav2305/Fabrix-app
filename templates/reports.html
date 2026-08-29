@@ -4,6 +4,15 @@
 
 {% block page_title %}Reports & Analytics{% endblock %}
 
+{% block header_actions %}
+<a href="{{ url_for('export_sales_profit_excel') }}" class="btn btn-secondary" style="margin-right: 0.5rem;" title="Download Sales & Profit Report Excel">
+    <i class="fa-solid fa-file-excel"></i> Export Sales & Profit Excel
+</a>
+<a href="{{ url_for('export_stock_excel') }}" class="btn btn-primary" title="Download Current Stock Details Excel">
+    <i class="fa-solid fa-boxes-stacked"></i> Export Stock Details Excel
+</a>
+{% endblock %}
+
 {% block content %}
 <!-- Tab Navigation Menu -->
 <div style="display: flex; gap: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0px; margin-bottom: 2rem; overflow-x: auto;" class="no-print">

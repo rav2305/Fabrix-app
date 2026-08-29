@@ -5,6 +5,9 @@
 {% block page_title %}Stock Management{% endblock %}
 
 {% block header_actions %}
+<a href="{{ url_for('export_stock_excel') }}" class="btn btn-secondary" style="margin-right: 0.5rem;" title="Download Stock Catalog Excel">
+    <i class="fa-solid fa-file-excel"></i> Export Stock Excel
+</a>
 <button class="btn btn-primary" onclick="openAddModal()">
     <i class="fa-solid fa-plus"></i> Add Product
 </button>
