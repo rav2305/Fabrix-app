@@ -5,6 +5,9 @@
 {% block page_title %}Orders & Sales History{% endblock %}
 
 {% block header_actions %}
+<a href="{{ url_for('export_invoices_excel') }}" class="btn btn-secondary" style="margin-right: 0.5rem;" title="Export sales history to Excel">
+    <i class="fa-solid fa-file-excel"></i> Export Excel
+</a>
 <a href="{{ url_for('create_invoice') }}" class="btn btn-primary">
     <i class="fa-solid fa-plus"></i> New Invoice
 </a>
@@ -114,9 +117,18 @@
                     </td>
                     <td><span class="badge" style="background-color: var(--gold-light); color: var(--gold-dark);">{{ invoice.payment_method }}</span></td>
                     <td class="no-print">
-                        <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" class="btn btn-secondary btn-small" title="View details and PDF">
-                            <i class="fa-solid fa-eye"></i> View
-                        </a>
+                        <div style="display: flex; gap: 0.4rem;">
+                            <a href="{{ url_for('invoice_detail', invoice_id=invoice.id) }}" class="btn btn-secondary btn-small" title="View details and PDF">
+                                <i class="fa-solid fa-eye"></i> View
+                            </a>
+                            {% if current_user.is_authenticated and current_user.is_admin() %}
+                            <form action="{{ url_for('delete_invoice', invoice_id=invoice.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to CANCEL & DELETE Invoice {{ invoice.invoice_number }}? All product quantities in this invoice will be automatically RESTOCKED back into inventory.');">
+                                <button type="submit" class="btn btn-danger btn-small" title="Cancel invoice and restock items" style="padding: 0.35rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-trash-can"></i> Delete
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}

@@ -640,91 +640,195 @@ def cancel_bulk_upload():
 @login_required
 def create_invoice():
     if request.method == 'POST':
-        customer_name = request.form.get('customer_name', '').strip() or 'Walk-in Customer'
-        customer_phone = request.form.get('customer_phone', '').strip()
-        payment_method = request.form.get('payment_method', 'Cash')
-        discount = float(request.form.get('discount', 0.0))
-        
-        product_ids = request.form.getlist('product_id[]')
-        quantities = request.form.getlist('quantity[]')
-        selling_prices = request.form.getlist('selling_price[]')
-        
-        if not product_ids:
-            flash("Cannot create an empty invoice.", "error")
+        try:
+            customer_name = request.form.get('customer_name', '').strip() or 'Walk-in Customer'
+            customer_phone = request.form.get('customer_phone', '').strip()
+            payment_method = request.form.get('payment_method', 'Cash')
+            
+            try:
+                discount = float(request.form.get('discount') or 0.0)
+            except (ValueError, TypeError):
+                discount = 0.0
+            
+            product_ids = request.form.getlist('product_id[]')
+            quantities = request.form.getlist('quantity[]')
+            selling_prices = request.form.getlist('selling_price[]')
+            
+            if not product_ids:
+                flash("Cannot create an empty invoice. Please add at least one product.", "error")
+                return redirect(url_for('create_invoice'))
+                
+            # Generate Guaranteed Unique Invoice Number
+            date_str = datetime.now().strftime('%Y%m%d')
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_count = Invoice.query.filter(Invoice.date_created >= today_start).count()
+            
+            counter = today_count + 1
+            while True:
+                invoice_number = f"ORD-{date_str}-{str(counter).zfill(3)}"
+                if not Invoice.query.filter_by(invoice_number=invoice_number).first():
+                    break
+                counter += 1
+            
+            # Calculate pricing
+            subtotal = 0.0
+            invoice_items = []
+            
+            for pid, qty_str, price_str in zip(product_ids, quantities, selling_prices):
+                try:
+                    qty = int(qty_str)
+                    selling_price = float(price_str)
+                except (ValueError, TypeError):
+                    continue
+                    
+                if qty <= 0:
+                    continue
+                    
+                prod = db.session.get(Product, pid)
+                if prod:
+                    if prod.quantity < qty:
+                        flash(f"Insufficient stock for '{prod.name}'. Available: {prod.quantity}, Requested: {qty}", "error")
+                        return redirect(url_for('create_invoice'))
+                    
+                    # Reduce stock
+                    prod.quantity -= qty
+                    subtotal += selling_price * qty
+                    
+                    item = InvoiceItem(
+                        product_name=prod.name,
+                        quantity=qty,
+                        selling_price=selling_price,
+                        cost_price=prod.cost_price
+                    )
+                    invoice_items.append(item)
+            
+            if not invoice_items:
+                flash("No valid items selected for billing.", "error")
+                return redirect(url_for('create_invoice'))
+                
+            final_amount = max(0.0, subtotal - discount)
+            
+            # Capture paid amount and calculate status
+            amount_paid_raw = request.form.get('amount_paid', '').strip()
+            if amount_paid_raw == '':
+                amount_paid = final_amount
+            else:
+                try:
+                    amount_paid = float(amount_paid_raw)
+                except (ValueError, TypeError):
+                    amount_paid = final_amount
+                
+            if amount_paid >= final_amount:
+                amount_paid = final_amount
+                payment_status = 'Paid'
+            elif amount_paid > 0:
+                payment_status = 'Partial'
+            else:
+                payment_status = 'Unpaid'
+                
+            # Save invoice record
+            invoice = Invoice(
+                invoice_number=invoice_number,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                discount=discount,
+                total_amount=subtotal,
+                final_amount=final_amount,
+                amount_paid=amount_paid,
+                payment_status=payment_status,
+                payment_method=payment_method,
+                items=invoice_items
+            )
+            
+            db.session.add(invoice)
+            db.session.commit()
+            
+            flash(f"Invoice {invoice_number} created successfully.", "success")
+            return redirect(url_for('invoice_detail', invoice_id=invoice.id))
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating invoice: {str(e)}")
+            flash(f"Failed to generate invoice: {str(e)}", "error")
             return redirect(url_for('create_invoice'))
             
-        # Generate Invoice Number
-        date_str = datetime.now().strftime('%Y%m%d')
-        # Count number of invoices today to generate sequential ID
-        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_count = Invoice.query.filter(Invoice.date_created >= today_start).count()
-        invoice_number = f"ORD-{date_str}-{str(today_count + 1).zfill(3)}"
-        
-        # Calculate pricing
-        subtotal = 0.0
-        invoice_items = []
-        
-        for pid, qty_str, price_str in zip(product_ids, quantities, selling_prices):
-            qty = int(qty_str)
-            selling_price = float(price_str)
-            prod = Product.query.get(pid)
-            
-            if prod:
-                if prod.quantity < qty:
-                    flash(f"Insufficient stock for '{prod.name}'. Available: {prod.quantity}, Requested: {qty}", "error")
-                    return redirect(url_for('create_invoice'))
-                
-                # Reduce stock
-                prod.quantity -= qty
-                subtotal += selling_price * qty
-                
-                item = InvoiceItem(
-                    product_name=prod.name,
-                    quantity=qty,
-                    selling_price=selling_price,
-                    cost_price=prod.cost_price
-                )
-                invoice_items.append(item)
-        
-        final_amount = max(0.0, subtotal - discount)
-        
-        # Capture paid amount and calculate status
-        amount_paid_raw = request.form.get('amount_paid', '').strip()
-        if amount_paid_raw == '':
-            amount_paid = final_amount
-        else:
-            amount_paid = float(amount_paid_raw)
-            
-        if amount_paid >= final_amount:
-            amount_paid = final_amount
-            payment_status = 'Paid'
-        elif amount_paid > 0:
-            payment_status = 'Partial'
-        else:
-            payment_status = 'Unpaid'
-            
-        # Save invoice record
-        invoice = Invoice(
-            invoice_number=invoice_number,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            discount=discount,
-            total_amount=subtotal,
-            final_amount=final_amount,
-            amount_paid=amount_paid,
-            payment_status=payment_status,
-            payment_method=payment_method,
-            items=invoice_items
-        )
-        
-        db.session.add(invoice)
-        db.session.commit()
-        
-        flash(f"Invoice {invoice_number} created successfully.", "success")
-        return redirect(url_for('invoice_detail', invoice_id=invoice.id))
-        
     products = Product.query.order_by(Product.name.asc()).all()
     return render_template('invoice_create.html', products=products)
+
+@app.route('/invoice/delete/<int:invoice_id>', methods=['POST'])
+@login_required
+def delete_invoice(invoice_id):
+    if not current_user.is_admin():
+        flash("Only Administrators can delete or cancel invoice records.", "error")
+        return redirect(url_for('invoices_history'))
+        
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        flash("Invoice not found.", "error")
+        return redirect(url_for('invoices_history'))
+        
+    try:
+        # Restock inventory for items in this deleted invoice
+        for item in invoice.items:
+            prod = Product.query.filter_by(name=item.product_name).first()
+            if prod:
+                prod.quantity += item.quantity
+                
+        inv_num = invoice.invoice_number
+        db.session.delete(invoice)
+        db.session.commit()
+        flash(f"Invoice {inv_num} deleted and inventory restocked successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Failed to delete invoice: {str(e)}", "error")
+        
+    return redirect(url_for('invoices_history'))
+
+@app.route('/invoices/export-excel')
+@login_required
+def export_invoices_excel():
+    from openpyxl import Workbook
+    from flask import send_file
+    
+    invoices = Invoice.query.order_by(Invoice.date_created.desc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Fabrix Sales & Invoices"
+    
+    headers = ["Invoice No", "Date", "Customer Name", "Phone", "Total Amount", "Discount", "Final Amount", "Amount Paid", "Due Balance", "Status", "Payment Method"]
+    ws.append(headers)
+    
+    for inv in invoices:
+        ws.append([
+            inv.invoice_number,
+            inv.date_created.strftime('%Y-%m-%d %H:%M'),
+            inv.customer_name or 'Walk-in Customer',
+            inv.customer_phone or '',
+            inv.total_amount,
+            inv.discount,
+            inv.final_amount,
+            inv.amount_paid,
+            inv.outstanding_amount,
+            inv.payment_status,
+            inv.payment_method
+        ])
+        
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    file_stream = io.BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    return send_file(
+        file_stream,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"fabrix_sales_report_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    )
 
 @app.route('/invoice/<int:invoice_id>')
 @login_required
