@@ -1,29 +1,93 @@
 {% extends "base.html" %}
 
-{% block title %}Invoice {{ invoice.invoice_number }} - Fabrix Admin{% endblock %}
+{% block title %}Invoice {{ invoice.invoice_number }} - Fabrix{% endblock %}
 
 {% block head %}
 <!-- html2pdf.js Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+    /* Professional Invoice Table Enhancements */
+    .invoice-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .invoice-table th {
+        background-color: var(--bg-tertiary);
+        color: var(--gold-dark);
+        font-family: var(--font-serif);
+        font-size: 1.05rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.9rem 1rem;
+        border-bottom: 2px solid var(--gold-primary);
+        border-top: 1px solid var(--border-color);
+    }
+
+    .invoice-table td {
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 0.92rem;
+        vertical-align: middle;
+    }
+
+    .invoice-table tbody tr:nth-child(even) {
+        background-color: #FAF8F5;
+    }
+
+    .invoice-table tbody tr:hover {
+        background-color: var(--gold-light);
+    }
+
+    .share-toast {
+        display: none;
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background-color: var(--text-primary);
+        color: var(--bg-primary);
+        padding: 0.8rem 1.4rem;
+        border-radius: 6px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        z-index: 999;
+        font-size: 0.9rem;
+        font-weight: 500;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<!-- Top Action Buttons (Hide on Print) -->
-<div class="no-print" style="display: flex; gap: 0.8rem; justify-content: flex-end; margin: 0 auto 1.5rem auto; max-width: 850px; flex-wrap: wrap;">
-    <!-- Download PDF Button -->
-    <button onclick="downloadPDF()" class="btn btn-primary">
+<!-- Top Action Bar (Hidden on Print) -->
+<div class="no-print" style="display: flex; gap: 0.8rem; justify-content: flex-end; margin: 0 auto 1.5rem auto; max-width: 850px; flex-wrap: wrap; align-items: center;">
+    <!-- PDF Download Button -->
+    <button onclick="downloadPDF()" class="btn btn-primary" title="Download A4 PDF">
         <i class="fa-solid fa-file-pdf"></i> Download PDF
     </button>
     
     <!-- Print Button -->
-    <button onclick="window.print()" class="btn btn-secondary">
-        <i class="fa-solid fa-print"></i> Print Invoice
+    <button onclick="window.print()" class="btn btn-secondary" title="Print Invoice">
+        <i class="fa-solid fa-print"></i> Print
     </button>
-    
+
     {% if not is_public %}
-    <!-- Share WhatsApp Button -->
-    <button onclick="shareInvoice()" class="btn btn-secondary" style="background-color: #25D366; color: white; border-color: #25D366; cursor: pointer;">
-        <i class="fa-brands fa-whatsapp"></i> Share on WhatsApp
+    <!-- WhatsApp Share Button -->
+    <a href="{{ whatsapp_url }}" target="_blank" class="btn btn-secondary" style="background-color: #25D366; color: white; border-color: #25D366;" title="Send invoice via WhatsApp">
+        <i class="fa-brands fa-whatsapp"></i> WhatsApp
+    </a>
+
+    <!-- Copy Public Invoice Link Button -->
+    <button onclick="copyInvoiceLink()" class="btn btn-secondary" title="Copy public link to share">
+        <i class="fa-solid fa-link"></i> Copy Link
     </button>
     
     {% if invoice.outstanding_amount > 0 %}
@@ -31,148 +95,170 @@
         <i class="fa-solid fa-indian-rupee-sign"></i> Update Payment
     </button>
     {% endif %}
-    
+
     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
         <i class="fa-solid fa-chevron-left"></i> Dashboard
     </a>
     {% endif %}
 </div>
 
-<!-- Printable Invoice Card -->
-<div class="invoice-print-container">
-    <!-- Header Grid -->
-    <div class="invoice-header-grid">
+<!-- Toast notification for copy link -->
+<div id="shareToast" class="share-toast">
+    <i class="fa-solid fa-circle-check" style="color: #2E7D32; margin-right: 0.5rem;"></i> Invoice link copied to clipboard!
+</div>
+
+<!-- Printable Professional Invoice Card -->
+<div class="invoice-print-container" id="invoiceCard" style="background-color: #FFFFFF; border: 1px solid var(--border-color); padding: 3.5rem 3rem; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.06); max-width: 850px; margin: 0 auto; position: relative;">
+    
+    <!-- Brand & Store Header -->
+    <div class="invoice-header-grid" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 2rem; margin-bottom: 2.5rem;">
         <div>
-            <h1 class="invoice-logo">FABRIX</h1>
-            <p style="color: var(--text-secondary); margin-top: 0.8rem; font-size: 0.9rem; line-height: 1.5;">
+            <h1 class="invoice-logo" style="font-family: var(--font-serif); font-size: 2.8rem; letter-spacing: 5px; color: var(--text-primary); margin-bottom: 0.3rem;">FABRIX</h1>
+            <p style="color: var(--gold-dark); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.8rem;">Luxury Retail & Apparel</p>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
                 Fabrix, SUPER MALL-2, FF/152, Infocity, Gandhinagar, Gujarat 382007<br>
-                <strong>GSTIN:</strong> 24AFSFS5842R1ZX<br>
-                <strong>Owner:</strong> Sagar Chawariya | <strong>Mo:</strong> 9924555721
+                <strong>GSTIN:</strong> 24AFSFS5842R1ZX &nbsp;|&nbsp; <strong>Mo:</strong> +91 9924555721<br>
+                <strong>Owner:</strong> Sagar Chawariya
             </p>
         </div>
         
-        <div class="invoice-meta">
-            <h2>INVOICE</h2>
-            <p style="margin-bottom: 0.4rem;"><strong>No:</strong> {{ invoice.invoice_number }}</p>
-            <p style="margin-bottom: 0.4rem;"><strong>Date:</strong> {{ invoice.date_created.strftime('%d-%b-%Y %I:%M %p') }}</p>
-            <p><strong>Payment:</strong> {{ invoice.payment_method }}</p>
+        <div class="invoice-meta" style="text-align: right;">
+            <h2 style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--gold-dark); letter-spacing: 2px; margin-bottom: 0.8rem; text-transform: uppercase;">TAX INVOICE</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 0.3rem; color: var(--text-primary);">
+                <strong>Invoice No:</strong> <span style="color: var(--gold-dark); font-weight: 600;">{{ invoice.invoice_number }}</span>
+            </p>
+            <p style="font-size: 0.88rem; margin-bottom: 0.3rem; color: var(--text-secondary);">
+                <strong>Date & Time:</strong> {{ invoice.date_created.strftime('%d-%b-%Y %I:%M %p') }}
+            </p>
+            <p style="font-size: 0.88rem; color: var(--text-secondary);">
+                <strong>Payment Method:</strong> {{ invoice.payment_method }}
+            </p>
         </div>
     </div>
 
-    <!-- Details Grid -->
-    <div class="invoice-details-grid">
+    <!-- Customer & Billing Details Grid -->
+    <div class="invoice-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; border-top: 2px solid var(--border-color); border-bottom: 2px solid var(--border-color); padding: 1.5rem 0; margin-bottom: 2rem;">
         <div class="invoice-bill-to">
-            <h4>Billed To:</h4>
-            <p style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary);">
+            <h4 style="font-family: var(--font-sans); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 0.4rem;">Customer Information:</h4>
+            <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">
                 {{ invoice.customer_name or 'Walk-in Customer' }}
             </p>
             {% if invoice.customer_phone %}
-            <p style="color: var(--text-secondary); margin-top: 0.2rem;">
-                Phone: {{ invoice.customer_phone }}
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-top: 0.2rem;">
+                <i class="fa-solid fa-phone" style="font-size: 0.8rem; margin-right: 0.3rem; color: var(--gold-primary);"></i> {{ invoice.customer_phone }}
             </p>
             {% endif %}
         </div>
         
-        <div class="invoice-ship-to">
-            <h4>Sold By:</h4>
-            <p style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary);">
+        <div class="invoice-ship-to" style="text-align: right;">
+            <h4 style="font-family: var(--font-sans); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 0.4rem;">Issued By:</h4>
+            <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);">
                 Fabrix Retail Store
             </p>
-            <p style="color: var(--text-secondary); margin-top: 0.2rem;">
-                Issued by: {% if is_public %}Store Billing System{% else %}{{ current_user.username }}{% endif %}
+            <p style="color: var(--text-secondary); font-size: 0.88rem; margin-top: 0.2rem;">
+                Billed by: {% if is_public %}Store Billing Engine{% else %}{{ current_user.username }}{% endif %}
             </p>
         </div>
     </div>
 
-    <!-- Items Table -->
-    <div class="table-container" style="box-shadow: none; border-color: var(--border-color); margin-bottom: 1.5rem;">
-        <table class="custom-table">
-            <thead>
-                <tr>
-                    <th style="width: 50%;">Product Description</th>
-                    <th style="text-align: right; width: 15%;">Unit Price</th>
-                    <th style="text-align: center; width: 15%;">Qty</th>
-                    <th style="text-align: right; width: 20%;">Total Amount</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in invoice.items %}
-                <tr>
-                    <td><strong>{{ item.product_name }}</strong></td>
-                    <td style="text-align: right;">₹{{ "{:,.2f}".format(item.selling_price) }}</td>
-                    <td style="text-align: center;">{{ item.quantity }}</td>
-                    <td style="text-align: right; font-weight: 500;">₹{{ "{:,.2f}".format(item.selling_price * item.quantity) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Total Calculations -->
-    <div class="invoice-total-section">
-        <table class="invoice-total-table">
+    <!-- Professional Products Table -->
+    <table class="invoice-table">
+        <thead>
             <tr>
-                <td style="color: var(--text-secondary);">Subtotal:</td>
-                <td style="text-align: right; font-weight: 500;">
-                    {% set subtotal = invoice.final_amount + invoice.discount %}
-                    ₹{{ "{:,.2f}".format(subtotal) }}
+                <th style="width: 8%; text-align: center;">#</th>
+                <th style="width: 47%; text-align: left;">Product Description</th>
+                <th style="width: 15%; text-align: right;">Price (₹)</th>
+                <th style="width: 12%; text-align: center;">Qty</th>
+                <th style="width: 18%; text-align: right;">Total (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice.items %}
+            <tr>
+                <td style="text-align: center; color: var(--text-secondary); font-size: 0.85rem;">{{ loop.index }}</td>
+                <td>
+                    <strong style="color: var(--text-primary); font-size: 0.95rem;">{{ item.product_name }}</strong>
                 </td>
+                <td style="text-align: right;">₹{{ "{:,.2f}".format(item.selling_price) }}</td>
+                <td style="text-align: center; font-weight: 600;">{{ item.quantity }}</td>
+                <td style="text-align: right; font-weight: 600; color: var(--text-primary);">
+                    ₹{{ "{:,.2f}".format(item.selling_price * item.quantity) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Totals & Payment Summary -->
+    <div class="invoice-total-section" style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+        <table style="width: 300px; border-collapse: collapse;">
+            {% set subtotal = invoice.final_amount + invoice.discount %}
+            <tr>
+                <td style="padding: 0.5rem 0; color: var(--text-secondary); font-size: 0.92rem;">Subtotal:</td>
+                <td style="padding: 0.5rem 0; text-align: right; font-weight: 500; font-size: 0.95rem;">₹{{ "{:,.2f}".format(subtotal) }}</td>
             </tr>
             {% if invoice.discount > 0 %}
             <tr>
-                <td style="color: var(--text-secondary);">Discount:</td>
-                <td style="text-align: right; color: #C62828;">
-                    -₹{{ "{:,.2f}".format(invoice.discount) }}
-                </td>
+                <td style="padding: 0.5rem 0; color: var(--text-secondary); font-size: 0.92rem;">Discount Applied:</td>
+                <td style="padding: 0.5rem 0; text-align: right; color: #C62828; font-weight: 500;">-₹{{ "{:,.2f}".format(invoice.discount) }}</td>
             </tr>
             {% endif %}
-            <tr class="grand-total">
-                <td>Grand Total:</td>
-                <td style="text-align: right;">₹{{ "{:,.2f}".format(invoice.final_amount) }}</td>
+            <tr style="border-top: 2px solid var(--gold-primary); border-bottom: 2px solid var(--gold-primary);">
+                <td style="padding: 0.75rem 0; font-weight: 700; font-size: 1.15rem; color: var(--gold-dark);">Grand Total:</td>
+                <td style="padding: 0.75rem 0; text-align: right; font-weight: 700; font-size: 1.25rem; color: var(--gold-dark);">
+                    ₹{{ "{:,.2f}".format(invoice.final_amount) }}
+                </td>
             </tr>
             <tr>
-                <td style="color: var(--text-secondary);">Amount Paid:</td>
-                <td style="text-align: right; font-weight: 500; color: #2E7D32;">
-                    ₹{{ "{:,.2f}".format(invoice.amount_paid) }}
-                </td>
+                <td style="padding: 0.5rem 0; color: var(--text-secondary); font-size: 0.92rem;">Amount Paid:</td>
+                <td style="padding: 0.5rem 0; text-align: right; font-weight: 600; color: #2E7D32;">₹{{ "{:,.2f}".format(invoice.amount_paid) }}</td>
             </tr>
             {% if invoice.outstanding_amount > 0 %}
             <tr>
-                <td style="color: var(--text-secondary); font-weight: 500;">Due Balance:</td>
-                <td style="text-align: right; font-weight: 600; color: #C62828;">
+                <td style="padding: 0.5rem 0; color: #C62828; font-weight: 600; font-size: 0.92rem;">Outstanding Due:</td>
+                <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #C62828; font-size: 1rem;">
                     ₹{{ "{:,.2f}".format(invoice.outstanding_amount) }}
                 </td>
             </tr>
             {% endif %}
             <tr>
-                <td style="color: var(--text-secondary);">Payment Status:</td>
-                <td style="text-align: right;">
+                <td style="padding: 0.5rem 0; color: var(--text-secondary); font-size: 0.92rem;">Payment Status:</td>
+                <td style="padding: 0.5rem 0; text-align: right;">
                     {% if invoice.payment_status == 'Paid' %}
-                    <span class="badge badge-success" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">Paid</span>
+                    <span class="badge badge-success" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">PAID</span>
                     {% elif invoice.payment_status == 'Partial' %}
-                    <span class="badge badge-warning" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">Partial</span>
+                    <span class="badge badge-warning" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">PARTIAL</span>
                     {% else %}
-                    <span class="badge badge-danger" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">Unpaid</span>
+                    <span class="badge badge-danger" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">UNPAID</span>
                     {% endif %}
                 </td>
             </tr>
         </table>
     </div>
 
-    <!-- Footer Note -->
-    <div class="invoice-footer-note">
-        <p style="font-family: var(--font-serif); font-size: 1.1rem; color: var(--gold-dark); margin-bottom: 0.3rem;">
-            Thank you for shopping with us!
-        </p>
-        <p>This is a computer-generated invoice. Terms & Conditions apply.</p>
+    <!-- Stamp & Footer Notes -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 3.5rem; border-top: 1px dashed var(--border-color); padding-top: 1.8rem;">
+        <div>
+            <p style="font-family: var(--font-serif); font-size: 1.15rem; color: var(--gold-dark); font-weight: 600; margin-bottom: 0.2rem;">
+                Thank you for shopping at Fabrix!
+            </p>
+            <p style="font-size: 0.8rem; color: var(--text-secondary);">
+                Computer generated tax invoice. Goods once sold are non-refundable.
+            </p>
+        </div>
+        
+        <div style="text-align: center; border-top: 1px solid var(--border-color); width: 180px; padding-top: 0.4rem;">
+            <p style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">Authorized Signatory</p>
+        </div>
     </div>
 </div>
+
 {% if not is_public and invoice.outstanding_amount > 0 %}
 <!-- Modal: Update Payment -->
 <div class="modal" id="paymentModal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 480px;">
         <div class="modal-header">
-            <h3>Update Customer Payment</h3>
+            <h3><i class="fa-solid fa-indian-rupee-sign"></i> Update Customer Payment</h3>
             <button class="close-modal" onclick="closePaymentModal()">&times;</button>
         </div>
         <form action="{{ url_for('update_invoice_payment') }}" method="POST">
@@ -192,7 +278,7 @@
                         <input type="text" class="form-control" value="₹{{ '{:,.2f}'.format(invoice.amount_paid) }}" readonly style="background-color: var(--bg-secondary);">
                     </div>
                 </div>
-                <div class="form-group" style="margin-top: 1rem;">
+                <div class="form-group" style="margin-top: 0.5rem; margin-bottom: 1.2rem;">
                     <label style="font-weight: 600; color: #C62828;">Outstanding Balance: ₹{{ '{:,.2f}'.format(invoice.outstanding_amount) }}</label>
                 </div>
                 
@@ -224,11 +310,11 @@
 
 {% block scripts %}
 <script>
-    // Client-side PDF generator using html2pdf.js
+    // Download PDF function
     function downloadPDF() {
-        const element = document.querySelector('.invoice-print-container');
+        const element = document.getElementById('invoiceCard');
         const opt = {
-            margin:       [0.4, 0.4, 0.4, 0.4],
+            margin:       [0.3, 0.3, 0.3, 0.3],
             filename:     '{{ invoice.invoice_number }}.pdf',
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true },
@@ -237,64 +323,18 @@
         html2pdf().set(opt).from(element).save();
     }
 
-    async function shareInvoice() {
-        const element = document.querySelector('.invoice-print-container');
-        const opt = {
-            margin:       [0.4, 0.4, 0.4, 0.4],
-            filename:     '{{ invoice.invoice_number }}.pdf',
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-
-        // Extract WhatsApp message body from the generated URL
-        const fullWhatsappUrl = "{{ whatsapp_url|safe }}";
-        let messageText = "";
-        
-        // Find text parameter
-        const textParamIndex = fullWhatsappUrl.indexOf("text=");
-        if (textParamIndex !== -1) {
-            messageText = decodeURIComponent(fullWhatsappUrl.substring(textParamIndex + 5));
-        }
-
-        // Try using Web Share API first if supported
-        if (navigator.share && navigator.canShare) {
-            try {
-                // Show loading state on button
-                const shareBtn = document.querySelector('[onclick="shareInvoice()"]');
-                const origHtml = shareBtn.innerHTML;
-                shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Attaching PDF...';
-                shareBtn.disabled = true;
-
-                const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
-                const pdfFile = new File([pdfBlob], '{{ invoice.invoice_number }}.pdf', { type: "application/pdf" });
-                
-                const shareData = {
-                    files: [pdfFile],
-                    title: 'Invoice {{ invoice.invoice_number }}',
-                    text: messageText
-                };
-
-                shareBtn.innerHTML = origHtml;
-                shareBtn.disabled = false;
-
-                if (navigator.canShare(shareData)) {
-                    await navigator.share(shareData);
-                    return; // Successfully shared natively!
-                }
-            } catch (err) {
-                console.error('Error with Web Share API:', err);
-                // Reset button on error
-                const shareBtn = document.querySelector('[onclick="shareInvoice()"]');
-                if (shareBtn) {
-                    shareBtn.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Share on WhatsApp';
-                    shareBtn.disabled = false;
-                }
-            }
-        }
-
-        // Fallback: Open standard WhatsApp URL
-        window.open(fullWhatsappUrl, "_blank");
+    // Copy Public Invoice Link
+    function copyInvoiceLink() {
+        const publicUrl = "{{ request.url_root }}invoice/public/{{ invoice.invoice_number }}";
+        navigator.clipboard.writeText(publicUrl).then(() => {
+            const toast = document.getElementById('shareToast');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }).catch(err => {
+            prompt("Copy this invoice link:", publicUrl);
+        });
     }
 
     {% if not is_public and invoice.outstanding_amount > 0 %}

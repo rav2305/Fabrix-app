@@ -69,6 +69,9 @@
                 <div class="user-info">
                     Logged in as: <span>{{ current_user.username }}</span> ({{ current_user.role|capitalize }})
                 </div>
+                <button type="button" onclick="openGlobalPasswordModal()" class="logout-btn" style="border-color: var(--border-color); color: var(--gold-dark);">
+                    <i class="fa-solid fa-key"></i> Change Password
+                </button>
                 <a href="{{ url_for('logout') }}" class="logout-btn">
                     <i class="fa-solid fa-right-from-bracket"></i> Logout
                 </a>
@@ -83,6 +86,9 @@
             <header class="top-header">
                 <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
                 <div class="header-actions">
+                    <button type="button" onclick="openGlobalPasswordModal()" class="btn btn-secondary btn-small">
+                        <i class="fa-solid fa-key"></i> Change Password
+                    </button>
                     {% block header_actions %}{% endblock %}
                 </div>
             </header>
@@ -103,32 +109,79 @@
         </main>
     </div>
 
+    {% if not is_public and current_user.is_authenticated %}
+    <!-- Global Change Password Modal -->
+    <div class="modal" id="globalPasswordModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-lock"></i> Change Password</h3>
+                <button class="close-modal" onclick="closeGlobalPasswordModal()">&times;</button>
+            </div>
+            <form action="{{ url_for('change_password') }}" method="POST">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="global_current_password">Current Password</label>
+                        <input type="password" id="global_current_password" name="current_password" class="form-control" required placeholder="Enter current password">
+                    </div>
+                    <div class="form-group">
+                        <label for="global_new_password">New Password</label>
+                        <input type="password" id="global_new_password" name="new_password" class="form-control" required minlength="4" placeholder="Enter new password">
+                    </div>
+                    <div class="form-group">
+                        <label for="global_confirm_password">Confirm New Password</label>
+                        <input type="password" id="global_confirm_password" name="confirm_password" class="form-control" required minlength="4" placeholder="Re-enter new password">
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 1rem; padding: 1rem 1.5rem; border-top: 1px solid var(--border-color);">
+                    <button type="button" class="btn btn-secondary" onclick="closeGlobalPasswordModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Toggle sidebar script on mobile -->
     <script>
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
 
-        menuToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sidebar.classList.toggle('open');
-            const icon = menuToggle.querySelector('i');
-            if (sidebar.classList.contains('open')) {
-                icon.classList.remove('fa-bars');
-                icon.classList.add('fa-xmark');
-            } else {
-                icon.classList.remove('fa-xmark');
-                icon.classList.add('fa-bars');
-            }
-        });
-
-        document.addEventListener('click', (e) => {
-            if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuToggle) {
-                sidebar.classList.remove('open');
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('open');
                 const icon = menuToggle.querySelector('i');
-                icon.classList.remove('fa-xmark');
-                icon.classList.add('fa-bars');
+                if (sidebar.classList.contains('open')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-xmark');
+                } else {
+                    icon.classList.remove('fa-xmark');
+                    icon.classList.add('fa-bars');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuToggle) {
+                    sidebar.classList.remove('open');
+                    const icon = menuToggle.querySelector('i');
+                    icon.classList.remove('fa-xmark');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+
+        const globalPwdModal = document.getElementById('globalPasswordModal');
+        function openGlobalPasswordModal() {
+            if (globalPwdModal) {
+                globalPwdModal.style.display = 'flex';
+                document.getElementById('global_current_password').focus();
             }
-        });
+        }
+        function closeGlobalPasswordModal() {
+            if (globalPwdModal) {
+                globalPwdModal.style.display = 'none';
+            }
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

@@ -749,14 +749,14 @@ def invoice_detail(invoice_id):
         f"Thanks again for your purchase—hope to see you again soon! 💫"
     )
     
-    # URL encode parameters
-    encoded_message = urllib.parse.quote(msg_template)
-    if invoice.customer_phone:
-        # Prepend country code if missing (assumes Indian standard +91)
-        phone = invoice.customer_phone
-        if len(phone) == 10:
-            phone = "91" + phone
-        whatsapp_url = f"https://api.whatsapp.com/send?phone={phone}&text={encoded_message}"
+    import re
+    # Clean phone number (strip spaces, hyphens, non-digit chars)
+    phone_digits = re.sub(r'\D', '', invoice.customer_phone or '')
+    if len(phone_digits) == 10:
+        phone_digits = "91" + phone_digits
+        
+    if phone_digits:
+        whatsapp_url = f"https://wa.me/{phone_digits}?text={encoded_message}"
     else:
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_message}"
         
@@ -1037,6 +1037,54 @@ def delete_user(user_id):
         flash(f"User access revoked successfully.", "success")
     else:
         flash("User not found.", "error")
+    return redirect(url_for('users'))
+
+@app.route('/user/change-password', methods=['POST'])
+@login_required
+def change_password():
+    current_pwd = request.form.get('current_password', '')
+    new_pwd = request.form.get('new_password', '')
+    confirm_pwd = request.form.get('confirm_password', '')
+    
+    if not current_pwd or not new_pwd:
+        flash("Please fill in all password fields.", "error")
+        return redirect(request.referrer or url_for('dashboard'))
+        
+    if not check_password_hash(current_user.password_hash, current_pwd):
+        flash("Current password is incorrect.", "error")
+        return redirect(request.referrer or url_for('dashboard'))
+        
+    if new_pwd != confirm_pwd:
+        flash("New password and confirm password do not match.", "error")
+        return redirect(request.referrer or url_for('dashboard'))
+        
+    current_user.password_hash = generate_password_hash(new_pwd)
+    db.session.commit()
+    
+    flash("Your password has been changed successfully!", "success")
+    return redirect(request.referrer or url_for('dashboard'))
+
+@app.route('/users/reset-password/<int:user_id>', methods=['POST'])
+@login_required
+def reset_user_password(user_id):
+    if not current_user.is_admin():
+        flash("Unauthorized action: Administrators only.", "error")
+        return redirect(url_for('dashboard'))
+        
+    new_pwd = request.form.get('new_password', '').strip()
+    if not new_pwd or len(new_pwd) < 4:
+        flash("New password must be at least 4 characters long.", "error")
+        return redirect(url_for('users'))
+        
+    user = User.query.get(user_id)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for('users'))
+        
+    user.password_hash = generate_password_hash(new_pwd)
+    db.session.commit()
+    
+    flash(f"Password for user '{user.username}' has been updated successfully.", "success")
     return redirect(url_for('users'))
 
 @app.route('/admin/backup-db')
