@@ -853,6 +853,9 @@ def invoice_detail(invoice_id):
         f"Thanks again for your purchase—hope to see you again soon! 💫"
     )
     
+    import urllib.parse
+    encoded_message = urllib.parse.quote(msg_template)
+    
     import re
     # Clean phone number (strip spaces, hyphens, non-digit chars)
     phone_digits = re.sub(r'\D', '', invoice.customer_phone or '')
@@ -869,7 +872,7 @@ def invoice_detail(invoice_id):
 @app.route('/invoice/public/<string:invoice_number>')
 def public_invoice(invoice_number):
     invoice = Invoice.query.filter_by(invoice_number=invoice_number).first_or_404()
-    return render_template('invoice_detail.html', invoice=invoice, is_public=True)
+    return render_template('invoice_detail.html', invoice=invoice, is_public=True, whatsapp_url='#')
 
 @app.route('/invoices')
 @login_required
