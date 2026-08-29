@@ -80,10 +80,10 @@
     </button>
 
     {% if not is_public %}
-    <!-- WhatsApp Share Button -->
-    <a href="{{ whatsapp_url }}" target="_blank" class="btn btn-secondary" style="background-color: #25D366; color: white; border-color: #25D366;" title="Send invoice via WhatsApp">
-        <i class="fa-brands fa-whatsapp"></i> WhatsApp
-    </a>
+    <!-- Direct PDF + Message WhatsApp Share Button -->
+    <button onclick="sharePDFWhatsApp()" class="btn btn-secondary" style="background-color: #25D366; color: white; border-color: #25D366; font-weight: 600;" title="Share PDF file & message on WhatsApp">
+        <i class="fa-brands fa-whatsapp"></i> Share PDF on WhatsApp
+    </button>
 
     <!-- Copy Public Invoice Link Button -->
     <button onclick="copyInvoiceLink()" class="btn btn-secondary" title="Copy public link to share">
@@ -102,7 +102,7 @@
     {% endif %}
 </div>
 
-<!-- Toast notification for copy link -->
+<!-- Toast notification for copy link / share feedback -->
 <div id="shareToast" class="share-toast">
     <i class="fa-solid fa-circle-check" style="color: #2E7D32; margin-right: 0.5rem;"></i> Invoice link copied to clipboard!
 </div>
@@ -321,6 +321,63 @@
             jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
         html2pdf().set(opt).from(element).save();
+    }
+
+    // Direct PDF File + Message WhatsApp Sharing
+    async function sharePDFWhatsApp() {
+        const toast = document.getElementById('shareToast');
+        toast.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing PDF Invoice for WhatsApp...';
+        toast.style.display = 'block';
+
+        const element = document.getElementById('invoiceCard');
+        const opt = {
+            margin:       [0.3, 0.3, 0.3, 0.3],
+            filename:     '{{ invoice.invoice_number }}.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+
+        try {
+            // Generate PDF File Blob
+            const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+            const pdfFile = new File([pdfBlob], '{{ invoice.invoice_number }}.pdf', { type: 'application/pdf' });
+
+            const shareText = `Hello {{ invoice.customer_name or 'Customer' }},\n\n` +
+                              `Thanks for shopping with Fabrix! 🛍️\n\n` +
+                              `Order Invoice: #{{ invoice.invoice_number }}\n` +
+                              `Grand Total: ₹{{ invoice.final_amount }}\n\n` +
+                              `📍 SUPER MALL-2, FF/152, Infocity, Gandhinagar, Gujarat 382007\n` +
+                              `Thanks again for your purchase! 💫`;
+
+            // Check if Native Web Share with PDF Files is supported (Mobile / Android / iOS / Webview)
+            if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                toast.style.display = 'none';
+                await navigator.share({
+                    title: 'Invoice {{ invoice.invoice_number }}',
+                    text: shareText,
+                    files: [pdfFile]
+                });
+            } else {
+                // Desktop Webview fallback: Auto-download PDF & open WhatsApp Web/App
+                const downloadUrl = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = '{{ invoice.invoice_number }}.pdf';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                toast.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #25D366;"></i> PDF Invoice downloaded! Opening WhatsApp... Simply attach the PDF in chat.';
+                setTimeout(() => {
+                    window.open('{{ whatsapp_url }}', '_blank');
+                    setTimeout(() => { toast.style.display = 'none'; }, 4000);
+                }, 1000);
+            }
+        } catch (err) {
+            console.log('Share dismissed or exception:', err);
+            toast.style.display = 'none';
+        }
     }
 
     // Copy Public Invoice Link
