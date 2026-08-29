@@ -28,11 +28,16 @@
     </div>
     {% endif %}
 
+    <div class="sidebar-overlay" id="sidebarOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 1040; backdrop-filter: blur(2px);"></div>
+
     <div class="app-container">
         {% if not is_public %}
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
-            <div class="brand">FABRIX</div>
+            <button class="sidebar-close-btn" id="sidebarClose" style="display: none; position: absolute; top: 1.2rem; right: 1.2rem; background: none; border: none; font-size: 1.6rem; color: var(--gold-dark); cursor: pointer; padding: 0.2rem 0.5rem; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="brand" style="margin-top: 0.5rem;">FABRIX</div>
             <nav style="flex: 1;">
                 <ul class="nav-links">
                     <li class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
@@ -154,28 +159,40 @@
     <script>
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
+        const sidebarClose = document.getElementById('sidebarClose');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-        if (menuToggle && sidebar) {
+        function openMobileSidebar() {
+            if (sidebar) sidebar.classList.add('open');
+            if (sidebarOverlay) sidebarOverlay.style.display = 'block';
+        }
+
+        function closeMobileSidebar() {
+            if (sidebar) sidebar.classList.remove('open');
+            if (sidebarOverlay) sidebarOverlay.style.display = 'none';
+        }
+
+        if (menuToggle) {
             menuToggle.addEventListener('click', (e) => {
                 e.stopPropagation();
-                sidebar.classList.toggle('open');
-                const icon = menuToggle.querySelector('i');
-                if (sidebar.classList.contains('open')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-xmark');
+                if (sidebar && sidebar.classList.contains('open')) {
+                    closeMobileSidebar();
                 } else {
-                    icon.classList.remove('fa-xmark');
-                    icon.classList.add('fa-bars');
+                    openMobileSidebar();
                 }
             });
+        }
 
-            document.addEventListener('click', (e) => {
-                if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuToggle) {
-                    sidebar.classList.remove('open');
-                    const icon = menuToggle.querySelector('i');
-                    icon.classList.remove('fa-xmark');
-                    icon.classList.add('fa-bars');
-                }
+        if (sidebarClose) {
+            sidebarClose.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeMobileSidebar();
+            });
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                closeMobileSidebar();
             });
         }
 

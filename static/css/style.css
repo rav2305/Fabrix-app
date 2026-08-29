@@ -738,10 +738,19 @@ a {
 /* Mobile responsive media queries */
 @media (max-width: 768px) {
     .sidebar {
-        left: -260px;
+        left: -280px;
+        width: 280px;
+        z-index: 1050;
+        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.25);
+        top: 0;
+        height: 100vh;
+        background-color: var(--bg-primary);
     }
     .sidebar.open {
         left: 0;
+    }
+    .sidebar-close-btn {
+        display: flex !important;
     }
     .main-content {
         margin-left: 0;
@@ -749,6 +758,7 @@ a {
     }
     .mobile-header {
         display: flex;
+        z-index: 101;
     }
     .top-header {
         display: none;
